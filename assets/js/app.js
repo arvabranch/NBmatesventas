@@ -2,33 +2,39 @@
   'use strict';
 
   var CFG = window.CONFIG || {};
-  // Destilados solo aparecen si hay número de licencia OCM en config.js
-  var CANNABIS_ON = !!String(CFG.cannabisLicense || '').trim();
-  var PRODUCTS = (window.PRODUCTS || []).concat(CANNABIS_ON ? (window.CANNABIS || []).map(function (p) {
-    return Object.assign({ puffs: 0 }, p, { type: 'destilado' });
-  }) : []);
+  var MARKUP = CFG.markup == null ? 0.17 : CFG.markup;
+  var ROUND = CFG.roundTo || 1000;
+  // Precio de venta = costo Vape House + margen, redondeado hacia arriba
+  function sale(cost) { return cost ? Math.ceil(cost * (1 + MARKUP) / ROUND) * ROUND : 0; }
+
+  var PRODUCTS = (window.PRODUCTS || []).map(function (p) {
+    var packs = { 1: sale(p.cost) };
+    if (p.x10) packs[10] = sale(p.x10);
+    if (p.x100) packs[100] = sale(p.x100);
+    return Object.assign({}, p, { price: packs[1], oldPrice: sale(p.oldCost), packs: packs });
+  });
   var COMBOS = window.COMBOS || [];
   var I18N = window.I18N;
   var t = I18N.t;
   var byId = {};
   PRODUCTS.forEach(function (p) { byId[p.id] = p; });
 
-  var TYPES = ['all', 'desechable', 'recargable', 'pod', 'open', 'destilado'];
-  var IMG_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><rect x="128" y="40" width="44" height="200" rx="14" fill="#8a8a92" opacity=".35"/><rect x="128" y="150" width="44" height="90" rx="14" fill="#c9a227" opacity=".7"/><rect x="138" y="20" width="24" height="26" rx="6" fill="#55555c" opacity=".5"/></svg>');
+  var TYPES = ['all', 'desechable', 'recargable', 'capsula', 'pod', 'open'];
+  var TIERS = [1, 10, 100];
 
   var ICON_BOLT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>';
   var ICON_ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6Z"/></svg>';
 
   var $ = function (id) { return document.getElementById(id); };
-  var state = { type: 'all', q: '', sort: 'puffs-asc' };
-  var order = { item: null, qty: 1, spot: null };
+  var state = { type: 'all', q: '', sort: 'puffs-asc', tier: 1 };
+  var order = { item: null, qty: 1, spot: null, tier: 1 };
 
   // ───────── Helpers ─────────
-  function money(n) {
-    n = Number(n || 0);
-    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
-  }
-  function num(n) { return Number(n).toLocaleString('en-US'); }
+  function money(n) { return '$' + Math.round(Number(n || 0)).toLocaleString('es-CO'); }
+  function num(n) { return Number(n).toLocaleString('es-CO'); }
+  function hasTier(p, tier) { return !!(p.packs && p.packs[tier]); }
+  function tierPrice(item, tier) { return item.combo ? item.price : item.packs[tier]; }
+  function tierLabel(tier) { return t('tier.' + tier); }
   function pname(p) { return (I18N.lang === 'en' && p.nameEn) || p.name; }
   function pnote(p) { return (I18N.lang === 'en' && p.noteEn) || p.note || ''; }
   function esc(s) {
@@ -37,10 +43,7 @@
     });
   }
   function norm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
-  function img(p) {
-    if (p.image) return p.image;
-    return p.type === 'destilado' ? IMG_FALLBACK : 'assets/img/products/' + p.id + '.webp';
-  }
+  function img(p) { return p.image || 'assets/img/products/' + p.id + '.webp'; }
   function store(key, val) {
     try {
       if (val === undefined) return localStorage.getItem(key);
@@ -49,7 +52,6 @@
   }
 
   function puffsLabel(p) {
-    if (p.type === 'destilado') return [p.size, p.thc ? p.thc + '% THC' : '', p.strain ? t('strain.' + p.strain) : ''].filter(Boolean).join(' · ');
     if (p.puffs > 0) return num(p.puffs) + ' ' + t('p.puffs');
     if (p.type === 'open') return t('p.open');
     return t('p.battery');
@@ -79,11 +81,6 @@
   function setTitle() { document.title = (CFG.brand || 'NBmates') + ' · ' + t('meta.title'); }
   if ($('heroCount')) $('heroCount').textContent = PRODUCTS.length;
   $('factModels').textContent = PRODUCTS.length;
-  if (CANNABIS_ON) {
-    $('cannabisLegal').hidden = false;
-    $('cannabisLicense').textContent = CFG.cannabisLicense;
-    $('gateText').dataset.i18n = 'gate.textCannabis';
-  }
   var maxPuffs = Math.max.apply(null, PRODUCTS.map(function (p) { return p.puffs; }));
   document.querySelector('.fact:nth-child(2) strong').textContent = Math.round(maxPuffs / 1000) + 'K';
 
@@ -91,7 +88,8 @@
   var chips = $('chips');
   function renderChips() {
     chips.innerHTML = TYPES.map(function (type) {
-      var count = type === 'all' ? PRODUCTS.length : PRODUCTS.filter(function (p) { return p.type === type; }).length;
+      var pool = PRODUCTS.filter(function (p) { return hasTier(p, state.tier); });
+      var count = type === 'all' ? pool.length : pool.filter(function (p) { return p.type === type; }).length;
       if (!count) return '';
       return '<button class="chip" type="button" role="tab" data-type="' + type + '" aria-selected="' + (type === state.type) + '">' +
         esc(t('type.' + type)) + '<small>' + count + '</small></button>';
@@ -113,12 +111,35 @@
   });
   $('sort').addEventListener('change', function (e) { state.sort = e.target.value; render(); });
 
+  // ───────── Precio por unidad / x10 / x100 ─────────
+  var tierBar = $('tierBar');
+  function renderTierBar() {
+    tierBar.innerHTML = TIERS.map(function (tier) {
+      var n = PRODUCTS.filter(function (p) { return hasTier(p, tier); }).length;
+      return '<button type="button" class="tier" data-tier="' + tier + '" aria-pressed="' + (tier === state.tier) + '">' +
+        '<strong>' + esc(tierLabel(tier)) + '</strong><small>' + esc(t('tier.' + tier + 'sub', { n: n })) + '</small></button>';
+    }).join('');
+  }
+  function setTier(tier) {
+    state.tier = tier;
+    var still = state.type === 'all' || PRODUCTS.some(function (p) { return p.type === state.type && hasTier(p, tier); });
+    if (!still) state.type = 'all';
+    renderTierBar();
+    renderChips();
+    render();
+  }
+  tierBar.addEventListener('click', function (e) {
+    var b = e.target.closest('.tier');
+    if (b) setTier(Number(b.dataset.tier));
+  });
+
   // ───────── Catalog ─────────
   function sorted(list) {
     var s = state.sort;
     return list.slice().sort(function (a, b) {
-      if (s === 'price-asc') return a.price - b.price;
-      if (s === 'price-desc') return b.price - a.price;
+      var ta = a.packs[state.tier], tb = b.packs[state.tier];
+      if (s === 'price-asc') return ta - tb;
+      if (s === 'price-desc') return tb - ta;
       // Sin puffs (baterías/open) al final en ambos órdenes de puffs
       var pa = a.puffs || (s === 'puffs-asc' ? Infinity : -1);
       var pb = b.puffs || (s === 'puffs-asc' ? Infinity : -1);
@@ -126,27 +147,40 @@
     });
   }
 
+  function cardPrice(p) {
+    var tier = state.tier;
+    if (tier === 1) {
+      var best = p.packs[100] ? 100 : p.packs[10] ? 10 : 0;
+      return '<span class="price">' + (p.oldPrice ? '<s>' + money(p.oldPrice) + '</s>' : '') + money(p.price) + '</span>' +
+        (best ? '<span class="bulk">' + esc(t('p.bulkFrom', { x: money(p.packs[best] / best) })) + '</span>' : '');
+    }
+    return '<span class="price">' + money(p.packs[tier]) + '<em>' + esc(tierLabel(tier)) + '</em></span>' +
+      '<span class="bulk bulk--on">' + esc(t('p.each', { x: money(p.packs[tier] / tier) })) + '</span>';
+  }
+
   function card(p, i) {
     var badge = '';
     if (p.soldOut) badge = '<span class="card__badge card__badge--soft">' + esc(t('p.soldOut')) + '</span>';
-    else if (p.oldPrice) badge = '<span class="card__badge">' + esc(t('p.sale')) + '</span>';
+    else if (p.oldPrice && state.tier === 1) badge = '<span class="card__badge">' + esc(t('p.sale')) + '</span>';
+    else if (state.tier > 1 && p.price) badge = '<span class="card__badge">-' + Math.round((1 - p.packs[state.tier] / (p.price * state.tier)) * 100) + '%</span>';
     else if (p.tags && p.tags.length) badge = '<span class="card__badge card__badge--soft">' + esc(p.tags[0]) + '</span>';
 
     return '<button type="button" class="card' + (p.soldOut ? ' is-out' : '') + '" data-id="' + p.id + '" style="animation-delay:' + Math.min(i, 12) * 30 + 'ms"' +
-      ' aria-label="' + esc(t('p.order')) + ' ' + esc(pname(p)) + ', ' + esc(puffsLabel(p)) + ', ' + money(p.price) + '">' +
+      ' aria-label="' + esc(t('p.order')) + ' ' + esc(pname(p)) + ', ' + esc(puffsLabel(p)) + ', ' + money(p.packs[state.tier]) + '">' +
       '<div class="card__media">' + badge +
       '<img src="' + img(p) + '" alt="" loading="lazy" decoding="async" width="300" height="300"></div>' +
       '<div class="card__body">' +
       '<span class="card__brand">' + esc(p.brand) + '</span>' +
       '<span class="card__name">' + esc(pname(p)) + '</span>' +
       puffsPill(p) +
-      '<div class="card__foot"><span class="price">' + (p.oldPrice ? '<s>' + money(p.oldPrice) + '</s>' : '') + money(p.price) + '</span>' +
+      '<div class="card__foot"><div class="card__prices">' + cardPrice(p) + '</div>' +
       '<span class="card__go" aria-hidden="true">' + ICON_ARROW + '</span></div>' +
       '</div></button>';
   }
 
   function render() {
     var list = PRODUCTS.filter(function (p) {
+      if (!hasTier(p, state.tier)) return false;
       if (state.type !== 'all' && p.type !== state.type) return false;
       if (state.q && norm(p.name + ' ' + (p.nameEn || '') + ' ' + p.brand + ' ' + p.puffs).indexOf(state.q) === -1) return false;
       return true;
@@ -154,7 +188,8 @@
     list = sorted(list);
     $('grid').innerHTML = list.map(card).join('');
     $('empty').hidden = list.length > 0;
-    $('count').textContent = list.length + (list.length === 1 ? ' vape' : ' vapes');
+    $('count').textContent = t(list.length === 1 ? 'count.one' : 'count.many', { n: list.length }) +
+      (state.tier > 1 ? ' · ' + t('count.tier', { x: tierLabel(state.tier) }) : '');
   }
 
   $('grid').addEventListener('click', function (e) {
@@ -162,7 +197,7 @@
     if (!c) return;
     var p = byId[c.dataset.id];
     if (p.soldOut) { toast(t('p.soldOutToast')); return; }
-    openSheet(p, c);
+    openSheet(p, c, state.tier);
   });
 
   // ───────── Combos ─────────
@@ -170,9 +205,10 @@
     var items = c.items.map(function (id) { return byId[id]; });
     var regular = items.reduce(function (s, p) { return s + p.price; }, 0);
     var puffs = items.reduce(function (s, p) { return s + p.puffs; }, 0);
+    var price = sale(c.cost);
     return {
-      id: c.id, name: c.name, price: c.price, items: items, combo: true,
-      puffs: puffs, save: regular - c.price,
+      id: c.id, name: c.name, price: price, items: items, combo: true,
+      puffs: puffs, save: regular - price,
       meta: function () { return t('combo.meta', { n: items.length, p: num(puffs) }); },
     };
   }
@@ -214,9 +250,38 @@
     return '<button type="button" class="chip" data-spot="' + esc(s) + '" aria-pressed="false">' + esc(s) + '</button>';
   }).join('');
 
-  function openSheet(item, from) {
+  var sheetTiers = $('sheetTiers');
+  function renderSheetTiers() {
+    var it = order.item;
+    var avail = it.combo ? [] : TIERS.filter(function (tier) { return hasTier(it, tier); });
+    sheetTiers.hidden = avail.length < 2;
+    sheetTiers.innerHTML = avail.map(function (tier) {
+      return '<button type="button" class="tier tier--sm" data-tier="' + tier + '" aria-pressed="' + (tier === order.tier) + '">' +
+        '<strong>' + esc(tierLabel(tier)) + '</strong><small>' + esc(t('p.each', { x: money(it.packs[tier] / tier) })) + '</small></button>';
+    }).join('');
+  }
+  sheetTiers.addEventListener('click', function (e) {
+    var b = e.target.closest('.tier');
+    if (!b) return;
+    order.tier = Number(b.dataset.tier);
+    order.qty = 1;
+    renderSheetTiers();
+    updateNote();
+    updateQty();
+  });
+
+  function updateNote() {
+    var item = order.item;
+    var note = item.combo ? (item.save > 0 ? t('combo.saveNote', { x: money(item.save) }) : '') : pnote(item);
+    if (!item.combo && order.tier > 1) note = [t('p.bulkNote'), note].filter(Boolean).join(' · ');
+    $('sheetNote').textContent = note;
+    $('sheetNote').hidden = !note;
+  }
+
+  function openSheet(item, from, tier) {
     order.item = item;
     order.qty = 1;
+    order.tier = !item.combo && tier && hasTier(item, tier) ? tier : 1;
     lastFocus = from || document.activeElement;
 
     var pics = item.combo ? item.items : [item];
@@ -226,9 +291,8 @@
     $('sheetPuffs').innerHTML = item.combo
       ? '<span class="puffs">' + ICON_BOLT + esc(item.meta()) + '</span>'
       : puffsPill(item);
-    var note = item.combo ? (item.save > 0 ? t('combo.saveNote', { x: money(item.save) }) : '') : pnote(item);
-    $('sheetNote').textContent = note;
-    $('sheetNote').hidden = !note;
+    renderSheetTiers();
+    updateNote();
     $('orderError').hidden = true;
     form.querySelectorAll('.invalid').forEach(function (el) { el.classList.remove('invalid'); });
     $('flavor').value = '';
@@ -255,7 +319,8 @@
 
   function updateQty() {
     $('qty').textContent = order.qty;
-    $('total').textContent = money(order.item.price * order.qty);
+    $('qtyLabel').textContent = order.tier > 1 ? t('order.packs', { x: tierLabel(order.tier) }) : t('order.qty');
+    $('total').textContent = money(tierPrice(order.item, order.tier) * order.qty);
     form.querySelector('[data-step="-1"]').disabled = order.qty <= 1;
     form.querySelector('[data-step="1"]').disabled = order.qty >= max;
   }
@@ -314,9 +379,13 @@
     } else {
       lines.push('*' + pname(it) + '* — ' + puffsLabel(it));
     }
-    lines.push(t('msg.qty') + ': ' + order.qty);
+    if (!it.combo && order.tier > 1) {
+      lines.push(t('msg.pack') + ': ' + tierLabel(order.tier) + ' × ' + order.qty + ' = ' + num(order.tier * order.qty) + ' ' + t('msg.units'));
+    } else {
+      lines.push(t('msg.qty') + ': ' + order.qty);
+    }
     if (flavor) lines.push(t('msg.flavor') + ': ' + flavor);
-    lines.push(t('msg.total') + ': ' + money(it.price * order.qty) + ' USD');
+    lines.push(t('msg.total') + ': ' + money(tierPrice(it, order.tier) * order.qty) + ' COP');
     lines.push('');
     lines.push(pickup ? t('msg.pickup') + ': ' + (order.spot || t('msg.tbd')) : t('msg.delivery') + ': ' + place);
     if (time) lines.push(t('msg.time') + ': ' + time);
@@ -333,19 +402,20 @@
 
   // ───────── Wholesale ─────────
   function setWholesale() { $('wholesaleBtn').href = waLink(CFG.whatsappWholesale, t('wh.msg')); }
+  $('wholesaleView').addEventListener('click', function () { setTier(10); });
 
   if (!CFG.whatsapp) console.warn('[config] Falta el número de WhatsApp de pedidos en assets/js/config.js');
   if (!CFG.whatsappWholesale) console.warn('[config] Falta el número de WhatsApp mayorista en assets/js/config.js');
 
   // ───────── Age gate ─────────
   var gate = $('gate');
-  if (store('nb_age21_ok') !== '1') {
+  if (store('nb_age_ok') !== '1') {
     gate.hidden = false;
     document.body.classList.add('locked');
     setTimeout(function () { $('gateYes').focus(); }, 50);
   }
   $('gateYes').addEventListener('click', function () {
-    store('nb_age21_ok', '1');
+    store('nb_age_ok', '1');
     gate.hidden = true;
     document.body.classList.remove('locked');
   });
@@ -377,6 +447,7 @@
     langBtn.textContent = I18N.lang === 'es' ? 'EN' : 'ES';
     setTitle();
     setWholesale();
+    renderTierBar();
     renderChips();
     renderCombos();
     render();

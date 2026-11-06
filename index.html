@@ -45,28 +45,30 @@
       </div>
       <div class="hero__art reveal" aria-hidden="true">
         <div class="hero__glow"></div>
-        <img class="hero__img hero__img--l" src="assets/img/products/waka-nova.webp" alt="" width="360" height="600">
+        <img class="hero__img hero__img--l" src="assets/img/products/dinner-lady-galax.webp" alt="" width="360" height="600">
         <img class="hero__img hero__img--c" src="assets/img/products/nexa-pix.webp" alt="" width="420" height="600">
         <img class="hero__img hero__img--r" src="assets/img/products/waka-blast.webp" alt="" width="360" height="600">
       </div>
     </section>
 
     <section class="facts reveal" aria-label="Resumen" data-i18n-aria="facts.aria">
-      <div class="fact"><strong id="factModels">9</strong><span data-i18n="facts.models">modelos</span></div>
-      <div class="fact"><strong>36K</strong><span data-i18n="facts.puffs">puffs máx.</span></div>
-      <div class="fact"><strong>2</strong><span data-i18n="facts.ways">formas de recibir</span></div>
+      <div class="fact"><strong id="factModels">89</strong><span data-i18n="facts.models">modelos</span></div>
+      <div class="fact"><strong>60K</strong><span data-i18n="facts.puffs">puffs máx.</span></div>
+      <div class="fact"><strong>3</strong><span data-i18n="facts.ways">unidad · x10 · x100</span></div>
     </section>
 
     <section class="catalog" id="catalogo" aria-labelledby="catTitle">
       <div class="section-head reveal">
         <h2 id="catTitle" data-i18n="cat.title">Catálogo</h2>
-        <p data-i18n="cat.sub">Solo marcas top. Toca un vape para pedirlo.</p>
+        <p data-i18n="cat.sub">Elige si compras por unidad, x10 o x100 y toca un vape para pedirlo.</p>
       </div>
+
+      <div class="tiers reveal" id="tierBar" role="group" aria-label="Precio por cantidad" data-i18n-aria="tier.aria"></div>
 
       <div class="toolbar" id="toolbar">
         <div class="search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.96 12.06l4.24 4.24-1.4 1.4-4.24-4.24A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>
-          <input id="q" type="search" placeholder="Buscar marca o modelo" autocomplete="off" aria-label="Buscar vape" data-i18n-ph="search.ph" data-i18n-aria="search.aria">
+          <input id="q" type="search" placeholder="Buscar vape o marca" autocomplete="off" aria-label="Buscar vape" data-i18n-ph="search.ph" data-i18n-aria="search.aria">
         </div>
         <div class="chips" role="tablist" aria-label="Tipo de vape" data-i18n-aria="chips.aria" id="chips"></div>
         <label class="sort">
@@ -109,14 +111,16 @@
         <p class="eyebrow eyebrow--light" data-i18n="wh.eyebrow">Al por mayor</p>
         <h2 id="whTitle" data-i18n="wh.title">¿Quieres comprar al por mayor?</h2>
         <p data-i18n="wh.sub">Precios especiales por volumen para revender.</p>
-        <a class="btn btn--light" id="wholesaleBtn" href="#" target="_blank" rel="noopener" data-i18n="wh.cta">Haz click aquí</a>
+        <div class="wholesale__actions">
+          <a class="btn btn--light" id="wholesaleView" href="#catalogo" data-i18n="wh.view">Ver precios x10 y x100</a>
+          <a class="btn btn--outline-light" id="wholesaleBtn" href="#" target="_blank" rel="noopener" data-i18n="wh.cta">Hablar por WhatsApp</a>
+        </div>
       </div>
     </section>
   </main>
 
   <footer class="footer">
     <p><strong data-brand>NBmates</strong> · <span data-i18n="footer.orders">Pedidos por WhatsApp</span></p>
-    <p class="footer__legal" id="cannabisLegal" hidden><span data-i18n="footer.cannabis"></span> <span data-i18n="footer.license"></span> <strong id="cannabisLicense"></strong></p>
     <p class="footer__legal" data-i18n="footer.legal">Venta exclusiva para mayores de 21 años. ADVERTENCIA: Este producto contiene nicotina. La nicotina es una sustancia química adictiva. Precios en dólares (USD) sujetos a cambio.</p>
   </footer>
 
@@ -140,8 +144,10 @@
       </div>
 
       <form class="order" id="orderForm" novalidate>
+        <div class="tiers tiers--sheet" id="sheetTiers" role="group" aria-label="Presentación" data-i18n-aria="tier.sheetAria" hidden></div>
+
         <div class="field field--row">
-          <span class="field__label" data-i18n="order.qty">Cantidad</span>
+          <span class="field__label" id="qtyLabel">Cantidad</span>
           <div class="stepper">
             <button type="button" class="stepper__btn" data-step="-1" aria-label="Menos" data-i18n-aria="order.less">−</button>
             <output id="qty" aria-live="polite">1</output>
@@ -202,7 +208,7 @@
   <!-- Verificación de edad -->
   <div class="gate" id="gate" hidden>
     <div class="gate__card" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
-      <p class="gate__badge">21+</p>
+      <p class="gate__badge">+18</p>
       <h2 id="gateTitle" data-i18n="gate.title">¿Tienes 21 años o más?</h2>
       <p id="gateText" data-i18n="gate.text">Esta página vende productos con nicotina. Solo pueden comprar mayores de 21 años.</p>
       <div class="gate__actions">
