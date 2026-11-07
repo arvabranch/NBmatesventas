@@ -1,5 +1,5 @@
 """Extrae las imágenes de producto (PNG con transparencia) de los PDF de catálogo.
-v0.2
+v0.3
 Uso: python3 tools/extract_pdf.py
 Genera assets/img/raw/cat-<pagina>.png y assets/img/raw/promo-<pagina>-<n>.png
 """
