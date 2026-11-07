@@ -9,10 +9,10 @@ window.CONFIG = {
   brand: 'NBmates',
 
   // Número que recibe los pedidos por unidad.
-  whatsapp: '',
+  whatsapp: '573150485151',
 
   // Número para compras al por mayor (aún no definido).
-  whatsappWholesale: '',
+  whatsappWholesale: '573150485151',
 
   // Puntos donde el cliente puede pasar a recoger su pedido.
   // Ejemplo: ['Centro comercial Chipichape', 'Parque del Perro']. Vacío = se coordina por chat.
